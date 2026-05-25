@@ -1,0 +1,223 @@
+{
+  "name": "WF1b_Postcall_Handler",
+  "nodes": [
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "OK",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [1696, -112],
+      "id": "02c447f3-a226-4979-a6ab-c13b4606ea38",
+      "name": "Respond to Webhook (OK)"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "qualification-done",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [0, -112],
+      "id": "3393d08a-0e13-4aac-abbd-4399cedebb14",
+      "name": "Webhook (qualification-done)",
+      "webhookId": "YOUR_WEBHOOK_ID_WF1B"
+    },
+    {
+      "parameters": {
+        "resource": "lead",
+        "operation": "update",
+        "leadId": "={{ $('Code (find by phone)').item.json.lead_id }}",
+        "updateFields": {
+          "customFields": {
+            "customFields": [
+              {
+                "fieldId": "AI_Context",
+                "value": "={{ $('Code (score + context)').item.json.summary }}"
+              },
+              {
+                "fieldId": "Session_ID",
+                "value": "={{ $('Code (score + context)').item.json.phone }}\n"
+              },
+              {
+                "fieldId": "AI_score",
+                "value": "={{ $('AI Agent').item.json.output.total_score }}"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.zohoCrm",
+      "typeVersion": 1,
+      "position": [1472, -112],
+      "id": "97459152-e042-42e8-b7d2-85432048d63f",
+      "name": "Zoho CRM (Update Lead)",
+      "credentials": {
+        "zohoOAuth2Api": {
+          "id": "YOUR_ZOHO_CREDENTIAL_ID",
+          "name": "Zoho CRM"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "07bd4cde-1698-4a64-beab-da6469d44a07",
+              "leftValue": "={{ $json.body.analysis }}",
+              "rightValue": "",
+              "operator": {
+                "type": "object",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [224, -112],
+      "id": "d639d121-7790-4825-9623-2b5781fce200",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "resource": "lead",
+        "operation": "getAll",
+        "returnAll": true,
+        "options": {
+          "fields": ["Full_Name", "Phone", "Session_ID", "AI_Context"]
+        }
+      },
+      "type": "n8n-nodes-base.zohoCrm",
+      "typeVersion": 1,
+      "position": [672, -112],
+      "id": "00dad534-93a3-4cbb-b7bc-e399aae04c67",
+      "name": "Get many leads",
+      "credentials": {
+        "zohoOAuth2Api": {
+          "id": "YOUR_ZOHO_CREDENTIAL_ID",
+          "name": "Zoho CRM"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const allLeads = $input.all();\n\nconst targetPhone = allLeads[0].json.Phone.replace(/\\s+/g, '').replace(/[^\\d+]/g, '');\n\nconst match = allLeads.find(item => {\n  const leadPhone = (item.json.Phone || '').replace(/\\s+/g, '').replace(/[^\\d+]/g, '');\n  return leadPhone === targetPhone;\n});\n\nif (!match) {\n  throw new Error('No lead found');\n}\n\nreturn [{\n  json: {\n    lead_id: match.json.id,\n    lead_name: match.json.Full_Name,\n    phone: match.json.Phone\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [896, -112],
+      "id": "9de5a2fe-7ed5-4eb5-a4b7-dbba6bbf4369",
+      "name": "Code (find by phone)"
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json.body;\n\nconst summary = data.analysis?.transcript_summary || '';\nconst phone = data.conversation_initiation_client_data\n              ?.dynamic_variables?.phone_number || '';\n\nreturn [{\n  json: {\n    phone: phone,\n    summary: summary,\n    transcript: JSON.stringify(data.transcript || []),\n    conversation_id: data.conversation_id || '',\n    lead_name: 'Unknown',\n    company: 'Unknown',\n    ai_score: 0,\n    ai_context: summary\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [448, -112],
+      "id": "dbb314e8-fdb8-4b1e-b8b9-98aef169d825",
+      "name": "Code (score + context)"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $('Code (score + context)').item.json.ai_context }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "You are a BANT scoring agent for GrowthLab performance marketing agency.\n\nAnalyze the call summary and calculate the total BANT score.\n\nSCORING RULES:\n- Budget: $3K+/mo=25, $2.5K=20, $1.5-2.5K=15, below $1.5K=10, not stated=0\n- Authority: Owner/CEO=25, CMO/Head=20, influences=15, gathers info=10, unknown=0\n- Need: Urgent problem=25, clear=20, mild=15, vague=10, not stated=0\n- Timeline: This week=25, this month=20, next month=15, 2-3 months=10, just looking=0\n\nAlways respond in English."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [1120, -112],
+      "id": "3136283d-9ed7-412f-8696-100a968af08c",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "claude-sonnet-4-5-20250929",
+          "cachedResultName": "Claude Sonnet 4.5"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.3,
+      "position": [1136, 112],
+      "id": "0981cfd2-fda6-49b1-8c5b-56cb159f2f45",
+      "name": "Anthropic Chat Model",
+      "credentials": {
+        "anthropicApi": {
+          "id": "YOUR_ANTHROPIC_CREDENTIAL_ID",
+          "name": "Anthropic account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"total_score\": {\n      \"type\": \"number\",\n      \"description\": \"Total BANT score 0-100\"\n    }\n  }\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [1264, 112],
+      "id": "c02c5dcb-a7b4-427b-9aa8-c8c059d6468d",
+      "name": "Structured Output Parser"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook (qualification-done)": {
+      "main": [[{"node": "If", "type": "main", "index": 0}]]
+    },
+    "Zoho CRM (Update Lead)": {
+      "main": [[{"node": "Respond to Webhook (OK)", "type": "main", "index": 0}]]
+    },
+    "If": {
+      "main": [[{"node": "Code (score + context)", "type": "main", "index": 0}]]
+    },
+    "Get many leads": {
+      "main": [[{"node": "Code (find by phone)", "type": "main", "index": 0}]]
+    },
+    "Code (find by phone)": {
+      "main": [[{"node": "AI Agent", "type": "main", "index": 0}]]
+    },
+    "Code (score + context)": {
+      "main": [[{"node": "Get many leads", "type": "main", "index": 0}]]
+    },
+    "AI Agent": {
+      "main": [[{"node": "Zoho CRM (Update Lead)", "type": "main", "index": 0}]]
+    },
+    "Anthropic Chat Model": {
+      "ai_languageModel": [[{"node": "AI Agent", "type": "ai_languageModel", "index": 0}]]
+    },
+    "Structured Output Parser": {
+      "ai_outputParser": [[{"node": "AI Agent", "type": "ai_outputParser", "index": 0}]]
+    }
+  },
+  "active": true,
+  "settings": {"executionOrder": "v1", "binaryMode": "separate"},
+  "versionId": "YOUR_VERSION_ID_WF1B",
+  "meta": {"instanceId": "YOUR_N8N_INSTANCE_ID"},
+  "id": "YOUR_WORKFLOW_ID_WF1B",
+  "tags": []
+}

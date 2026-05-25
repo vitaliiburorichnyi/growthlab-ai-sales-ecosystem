@@ -1,0 +1,173 @@
+{
+  "name": "WF3_CEO_Report",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [{"field": "weeks", "triggerAtDay": [5], "triggerAtHour": 17}]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [-496, 0],
+      "id": "1927d047-7957-4821-b036-e6e0d802161e",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [-496, 192],
+      "id": "5cefa0d9-49f1-4c50-8268-87743d6a1085",
+      "name": "When clicking 'Execute workflow'"
+    },
+    {
+      "parameters": {
+        "resource": "lead",
+        "operation": "getAll",
+        "returnAll": true,
+        "options": {
+          "fields": ["Full_Name", "Lead_Status", "AI_score", "Phone", "Owner"]
+        }
+      },
+      "type": "n8n-nodes-base.zohoCrm",
+      "typeVersion": 1,
+      "position": [-272, 96],
+      "id": "624b761a-f8b0-4c88-be7d-c32f5bc5ef97",
+      "name": "Get many leads",
+      "credentials": {
+        "zohoOAuth2Api": {
+          "id": "YOUR_ZOHO_CREDENTIAL_ID",
+          "name": "Zoho CRM"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const leads = $input.all().map(item => item.json);\n\nconst byStage = {};\nconst byOwner = {};\nlet newLeadsCount = 0;\nlet totalScore = 0;\nlet scoredLeads = 0;\n\nfor (const lead of leads) {\n  const stage = lead.Lead_Status || 'No Status';\n  byStage[stage] = (byStage[stage] || 0) + 1;\n\n  const owner = lead.Owner?.name || 'No Owner';\n  byOwner[owner] = (byOwner[owner] || 0) + 1;\n\n  if ((lead.Lead_Status || '').toLowerCase() === 'new') {\n    newLeadsCount++;\n  }\n\n  if (lead.AI_score && lead.AI_score > 0) {\n    totalScore += lead.AI_score;\n    scoredLeads++;\n  }\n}\n\nconst avgScore = scoredLeads > 0 ? Math.round(totalScore / scoredLeads) : 0;\n\nreturn [{\n  json: {\n    total_leads: leads.length,\n    new_leads_count: newLeadsCount,\n    avg_ai_score: avgScore,\n    by_stage: JSON.stringify(byStage),\n    by_owner: JSON.stringify(byOwner)\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-64, 96],
+      "id": "c675798f-ab30-4e47-9bca-e277ca97c7a9",
+      "name": "Code Node (Calculate Metrics)"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEETS_ID",
+          "mode": "list",
+          "cachedResultName": "Dialog Analysis",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_GOOGLE_SHEETS_ID/edit"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_GOOGLE_SHEETS_ID/edit#gid=0"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [144, 96],
+      "id": "220a7941-6269-4b21-876f-0bfe9833f716",
+      "name": "Google Sheets (Read Analysis Data)",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YOUR_GOOGLE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=CRM METRICS:\nTotal leads: {{ $('Code Node (Calculate Metrics)').item.json.total_leads }}\nNew leads: {{ $('Code Node (Calculate Metrics)').item.json.new_leads_count }}\nAverage AI Score: {{ $('Code Node (Calculate Metrics)').item.json.avg_ai_score }}\nBy stage: {{ $('Code Node (Calculate Metrics)').item.json.by_stage }}\nBy owner: {{ $('Code Node (Calculate Metrics)').item.json.by_owner }}\n\nDIALOG ANALYSIS:\n{{ $input.all().map(row => `Client: ${row.json.client} | Errors: ${row.json.agent_errors} | Problem: ${row.json.client_problem} | Pattern: ${row.json.successful_pattern}`).join('\\n') }}\n\nGenerate weekly CEO report.",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "You are a sales analytics expert at GrowthLab performance marketing agency.\n\nYou will receive two types of data:\n1. CRM metrics — total leads, stages, owners, average AI score\n2. Dialog analysis — agent errors, client problems, successful patterns\n\nYour job is to create a concise weekly report for the CEO.\n\nANALYSIS RULES:\n- Base conclusions ONLY on provided data\n- Do not invent names or numbers\n- If a stage has more than 20% of leads — flag as bottleneck\n- Identify which managers need attention\n- Give 3-5 specific actionable recommendations\n- Write in professional English\n- summary_message must be 2-3 sentences maximum for Telegram"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [352, 96],
+      "id": "b15343e6-0c83-4de4-8d8e-d6127c41d3c4",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"problems\": {\"type\": \"string\", \"description\": \"Main problems in the funnel and qualification\"},\n    \"bottleneck\": {\"type\": \"string\", \"description\": \"Most overloaded stage\"},\n    \"managers\": {\"type\": \"string\", \"description\": \"Which managers need attention\"},\n    \"recommendations\": {\"type\": \"string\", \"description\": \"3-5 specific actionable recommendations\"},\n    \"summary_message\": {\"type\": \"string\", \"description\": \"Short 2-3 sentence summary for Telegram\"}\n  }\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [496, 272],
+      "id": "181f545a-6d96-4e87-a2e3-3df8f108a8a3",
+      "name": "Structured Output Parser"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "claude-sonnet-4-5-20250929",
+          "cachedResultName": "Claude Sonnet 4.5"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.3,
+      "position": [352, 272],
+      "id": "c423fcda-ad2c-4ee6-bc7b-11e84d9072d0",
+      "name": "Anthropic Chat Model",
+      "credentials": {
+        "anthropicApi": {
+          "id": "YOUR_ANTHROPIC_CREDENTIAL_ID",
+          "name": "Anthropic account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "YOUR_TELEGRAM_CHAT_ID",
+        "text": "=📊 Weekly GrowthLab Report\n\n{{ $json.output.summary_message }}\n\n📈 Funnel Metrics:\nTotal leads: {{ $('Code Node (Calculate Metrics)').item.json.total_leads }}\nNew leads: {{ $('Code Node (Calculate Metrics)').item.json.new_leads_count }}\nAvg AI Score: {{ $('Code Node (Calculate Metrics)').item.json.avg_ai_score }}\n\n⚠️ Problems:\n{{ $json.output.problems }}\n\n🔴 Bottleneck:\n{{ $json.output.bottleneck }}\n\n👥 Managers:\n{{ $json.output.managers }}\n\n✅ Recommendations:\n{{ $json.output.recommendations }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "HTML"
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [704, 96],
+      "id": "3c138910-e0d5-47eb-b7a6-491fa8e20195",
+      "name": "Send a text message",
+      "webhookId": "YOUR_WEBHOOK_ID_WF3",
+      "credentials": {
+        "telegramApi": {
+          "id": "YOUR_TELEGRAM_CREDENTIAL_ID",
+          "name": "Telegram Call Stat BOT"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Schedule Trigger": {"main": [[{"node": "Get many leads", "type": "main", "index": 0}]]},
+    "When clicking 'Execute workflow'": {"main": [[{"node": "Get many leads", "type": "main", "index": 0}]]},
+    "Get many leads": {"main": [[{"node": "Code Node (Calculate Metrics)", "type": "main", "index": 0}]]},
+    "Code Node (Calculate Metrics)": {"main": [[{"node": "Google Sheets (Read Analysis Data)", "type": "main", "index": 0}]]},
+    "Google Sheets (Read Analysis Data)": {"main": [[{"node": "AI Agent", "type": "main", "index": 0}]]},
+    "Structured Output Parser": {"ai_outputParser": [[{"node": "AI Agent", "type": "ai_outputParser", "index": 0}]]},
+    "Anthropic Chat Model": {"ai_languageModel": [[{"node": "AI Agent", "type": "ai_languageModel", "index": 0}]]},
+    "AI Agent": {"main": [[{"node": "Send a text message", "type": "main", "index": 0}]]}
+  },
+  "active": true,
+  "settings": {"executionOrder": "v1", "binaryMode": "separate"},
+  "versionId": "YOUR_VERSION_ID_WF3",
+  "meta": {"instanceId": "YOUR_N8N_INSTANCE_ID"},
+  "id": "YOUR_WORKFLOW_ID_WF3",
+  "tags": []
+}

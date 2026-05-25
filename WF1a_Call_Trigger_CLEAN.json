@@ -1,0 +1,88 @@
+{
+  "name": "WF1a_Call_Trigger",
+  "nodes": [
+    {
+      "parameters": {
+        "jsCode": "const lead = $input.first().json.headers;\n\n// Only process if lead is genuinely new\nif (!lead.phone || lead.phone === '') {\n  throw new Error('No phone number - skipping');\n}\n\nlet phone = lead.phone || '';\nphone = phone.replace(/\\s+/g, '').replace(/[^\\d+]/g, '');\n\nif (phone.startsWith('0')) {\n  phone = '+38' + phone;\n} else if (phone.startsWith('380')) {\n  phone = '+' + phone;\n}\n\nreturn [{\n  json: {\n    phone: phone,\n    lead_name: lead.full_name || 'Unknown',\n    company: lead.company || '',\n    lead_id: lead.id || ''\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [208, 0],
+      "id": "b5b9aa05-ffea-4a3b-9880-4d446b1cb773",
+      "name": "Clean phone number to international format"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "new-lead",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [0, 0],
+      "id": "72b24da1-f3e7-4f1e-bd3a-1ae299b74561",
+      "name": "Webhook (New Lead Zoho CRM)",
+      "webhookId": "YOUR_WEBHOOK_ID_WF1A"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.happ.tools/api/assistants/YOUR_HAPP_ASSISTANT_ID/originate",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "phoneNumber",
+              "value": "={{ $json.phone }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [416, 0],
+      "id": "c4fd3196-9d2d-4660-a5ac-b27a6c4a6cac",
+      "name": "HTTP Request (Trigger Call)",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "YOUR_HAPP_CREDENTIAL_ID",
+          "name": "Happ (Header Auth)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "OK",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [624, 0],
+      "id": "1986db51-1e0c-46bc-b4d3-ab5cfa4e062e",
+      "name": "Respond to Webhook (OK)"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Clean phone number to international format": {
+      "main": [[{"node": "HTTP Request (Trigger Call)", "type": "main", "index": 0}]]
+    },
+    "Webhook (New Lead Zoho CRM)": {
+      "main": [[{"node": "Clean phone number to international format", "type": "main", "index": 0}]]
+    },
+    "HTTP Request (Trigger Call)": {
+      "main": [[{"node": "Respond to Webhook (OK)", "type": "main", "index": 0}]]
+    }
+  },
+  "active": true,
+  "settings": {"executionOrder": "v1", "binaryMode": "separate"},
+  "versionId": "YOUR_VERSION_ID_WF1A",
+  "meta": {"instanceId": "YOUR_N8N_INSTANCE_ID"},
+  "id": "YOUR_WORKFLOW_ID_WF1A",
+  "tags": []
+}

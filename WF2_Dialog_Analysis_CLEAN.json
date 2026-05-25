@@ -1,0 +1,212 @@
+{
+  "name": "WF2_Dialog_Analysis",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {"interval": [{"triggerAtHour": 9}]}
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [0, 48],
+      "id": "618ca874-532e-4cc3-a483-ea11c82209a4",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [0, 224],
+      "id": "ad0d3395-05c9-40db-9a5b-a2ccb21997ae",
+      "name": "When clicking 'Execute workflow'"
+    },
+    {
+      "parameters": {
+        "resource": "lead",
+        "operation": "getAll",
+        "returnAll": true,
+        "options": {
+          "fields": ["AI_Context", "Session_ID", "Phone", "Full_Name"]
+        }
+      },
+      "type": "n8n-nodes-base.zohoCrm",
+      "typeVersion": 1,
+      "position": [224, 48],
+      "id": "bdde42e3-05a7-4ed5-a5de-1438c746af36",
+      "name": "Get many leads",
+      "credentials": {
+        "zohoOAuth2Api": {
+          "id": "YOUR_ZOHO_CREDENTIAL_ID",
+          "name": "Zoho CRM"
+        }
+      }
+    },
+    {
+      "parameters": {"options": {}},
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [448, 48],
+      "id": "928d863a-ab5a-4904-9cde-d061f46e83d6",
+      "name": "Loop Over Items"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "c40338b1-49b5-47bc-a22d-9e632d00041e",
+              "leftValue": "={{ $json.Session_ID ?? '' }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [672, 64],
+      "id": "64f4a9bf-d8cc-444b-923c-e65f4c631a0c",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Lead name: {{ $('Loop Over Items').item.json.Full_Name }}\nCall summary: {{ $('Loop Over Items').item.json.AI_Context }}\n\nAnalyze this lead qualification call.",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "You are a sales quality analyst at GrowthLab performance marketing agency.\n\nYou will receive a call transcript summary between our AI voice agent (Dmytro) and a potential lead.\n\nAnalyze the conversation and provide:\n\n1. AGENT ERRORS:\n- Did the agent follow the BANT qualification sequence?\n- Were there any repeated questions?\n- Any misunderstandings or ASR errors the agent didn't handle well?\n- Did the agent stay professional?\nIf no errors — write \"No errors detected\"\n\n2. CLIENT PROBLEM:\nIn 1-2 sentences: what is the lead's main marketing pain point?\nBe specific, not generic.\n\n3. SUCCESSFUL PATTERN:\nWhat worked well in this conversation? Which agent phrases or approaches kept the lead engaged?\n\n4. BANT SCORE:\n- budget_score: 0-25\n- authority_score: 0-25\n- need_score: 0-25\n- timeline_score: 0-25\n- total_score: sum of all four\n\nSCORING RULES:\n- Budget: $3K+/mo=25, $2.5K=20, $1.5-2.5K=15, below $1.5K=10, not stated=0\n- Authority: Owner/CEO=25, CMO/Head=20, influences=15, gathers info=10, unknown=0\n- Need: Urgent problem=25, clear=20, mild=15, vague=10, not stated=0\n- Timeline: This week=25, this month=20, next month=15, 2-3 months=10, just looking=0\n\nAlways respond in English.\n\nFor BANT scores, always output the numbers in this exact format:\nbudget_score: [number]\nauthority_score: [number]\nneed_score: [number]\ntimeline_score: [number]\ntotal_score: [number]"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [896, 48],
+      "id": "b01cc8ce-3a8e-4428-8e2f-bfecfa316b83",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "claude-sonnet-4-5-20250929",
+          "cachedResultName": "Claude Sonnet 4.5"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.3,
+      "position": [896, 224],
+      "id": "4504dbb1-52f0-49d1-a212-2ec3b98de0d3",
+      "name": "Anthropic Chat Model",
+      "credentials": {
+        "anthropicApi": {
+          "id": "YOUR_ANTHROPIC_CREDENTIAL_ID",
+          "name": "Anthropic account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEETS_ID",
+          "mode": "list",
+          "cachedResultName": "Dialog Analysis",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_GOOGLE_SHEETS_ID/edit"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_GOOGLE_SHEETS_ID/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "id": "={{ $('Loop Over Items').item.json.id }}",
+            "client": "={{ $('Loop Over Items').item.json.Full_Name }}",
+            "phone": "={{ $('Loop Over Items').item.json.Phone }}",
+            "agent_errors": "={{ $json.output.agent_errors }}",
+            "client_problem": "={{ $json.output.client_problem }}",
+            "successful_pattern": "={{ $json.output.successful_pattern }}",
+            "ai_score": "={{ $json.output.total_score }}",
+            "date": "={{ $now.format('HH:mm - DD MMM YYYY') }}"
+          },
+          "matchingColumns": ["id"],
+          "schema": [
+            {"id": "id", "displayName": "id", "required": false, "defaultMatch": true, "display": true, "type": "string", "canBeUsedToMatch": true, "removed": false},
+            {"id": "client", "displayName": "client", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true},
+            {"id": "phone", "displayName": "phone", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true},
+            {"id": "agent_errors", "displayName": "agent_errors", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true},
+            {"id": "client_problem", "displayName": "client_problem", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true},
+            {"id": "successful_pattern", "displayName": "successful_pattern", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true},
+            {"id": "ai_score", "displayName": "ai_score", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true},
+            {"id": "date", "displayName": "date", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true}
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [1248, 48],
+      "id": "50c64134-1871-412e-83d3-5b4e4b7c5c70",
+      "name": "Append or update row in sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YOUR_GOOGLE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"agent_errors\": {\"type\": \"string\", \"description\": \"Summary of agent errors found in the call\"},\n    \"client_problem\": {\"type\": \"string\", \"description\": \"Main marketing pain point of the lead\"},\n    \"successful_pattern\": {\"type\": \"string\", \"description\": \"What worked well in the conversation\"},\n    \"budget_score\": {\"type\": \"number\", \"description\": \"Budget score 0-25\"},\n    \"authority_score\": {\"type\": \"number\", \"description\": \"Authority score 0-25\"},\n    \"need_score\": {\"type\": \"number\", \"description\": \"Need score 0-25\"},\n    \"timeline_score\": {\"type\": \"number\", \"description\": \"Timeline score 0-25\"},\n    \"total_score\": {\"type\": \"number\", \"description\": \"Total BANT score 0-100\"}\n  }\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [1040, 224],
+      "id": "6ca72bd1-c04e-4af7-872e-c63088d73823",
+      "name": "Structured Output Parser"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Schedule Trigger": {"main": [[{"node": "Get many leads", "type": "main", "index": 0}]]},
+    "When clicking 'Execute workflow'": {"main": [[{"node": "Get many leads", "type": "main", "index": 0}]]},
+    "Get many leads": {"main": [[{"node": "Loop Over Items", "type": "main", "index": 0}]]},
+    "Loop Over Items": {"main": [[], [{"node": "If", "type": "main", "index": 0}]]},
+    "If": {
+      "main": [
+        [{"node": "AI Agent", "type": "main", "index": 0}],
+        [{"node": "Loop Over Items", "type": "main", "index": 0}]
+      ]
+    },
+    "Anthropic Chat Model": {"ai_languageModel": [[{"node": "AI Agent", "type": "ai_languageModel", "index": 0}]]},
+    "AI Agent": {"main": [[{"node": "Append or update row in sheet", "type": "main", "index": 0}]]},
+    "Structured Output Parser": {"ai_outputParser": [[{"node": "AI Agent", "type": "ai_outputParser", "index": 0}]]},
+    "Append or update row in sheet": {"main": [[]]}
+  },
+  "active": true,
+  "settings": {"executionOrder": "v1", "binaryMode": "separate"},
+  "versionId": "YOUR_VERSION_ID_WF2",
+  "meta": {"instanceId": "YOUR_N8N_INSTANCE_ID"},
+  "id": "YOUR_WORKFLOW_ID_WF2",
+  "tags": []
+}

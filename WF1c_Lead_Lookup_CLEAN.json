@@ -1,0 +1,80 @@
+{
+  "name": "WF1c_Lead_Lookup",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "lead-lookup",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [-144, 0],
+      "id": "0cd46bf6-6ace-4990-8791-0d089bb35dc3",
+      "name": "Webhook (lead-lookup)",
+      "webhookId": "YOUR_WEBHOOK_ID_WF1C"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [528, 0],
+      "id": "50cca2b9-8d04-4ea2-9239-5a5cb569b2d1",
+      "name": "Respond to Webhook (JSON with lead data)"
+    },
+    {
+      "parameters": {
+        "resource": "lead",
+        "operation": "getAll",
+        "returnAll": true,
+        "options": {
+          "fields": ["Full_Name", "Phone", "Session_ID", "Company"]
+        }
+      },
+      "type": "n8n-nodes-base.zohoCrm",
+      "typeVersion": 1,
+      "position": [80, 0],
+      "id": "bebd9038-6dde-4ac4-89e2-70f36b43894e",
+      "name": "Get many leads",
+      "credentials": {
+        "zohoOAuth2Api": {
+          "id": "YOUR_ZOHO_CREDENTIAL_ID",
+          "name": "Zoho CRM"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const allLeads = $input.all();\nconst webhookData = $('Webhook (lead-lookup)').first().json;\nconst incomingPhone = webhookData.body.phone_number;\n\nconst match = allLeads.find(item => {\n  const leadPhone = (item.json.Phone || '').replace(/\\s+/g, '').replace(/[^\\d+]/g, '');\n  const incoming = (incomingPhone || '').replace(/\\s+/g, '').replace(/[^\\d+]/g, '');\n  return leadPhone === incoming;\n});\n\nif (!match) {\n  return [{ json: { lead_name: 'друже', company: '', phone: incomingPhone } }];\n}\n\nreturn [{\n  json: {\n    lead_name: match.json.Full_Name || 'друже',\n    company: match.json.Company || '',\n    phone: match.json.Phone || ''\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [304, 0],
+      "id": "15f000cc-6cde-49c2-b6b8-56709b7a6faf",
+      "name": "Code in JavaScript"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook (lead-lookup)": {
+      "main": [[{"node": "Get many leads", "type": "main", "index": 0}]]
+    },
+    "Get many leads": {
+      "main": [[{"node": "Code in JavaScript", "type": "main", "index": 0}]]
+    },
+    "Code in JavaScript": {
+      "main": [[{"node": "Respond to Webhook (JSON with lead data)", "type": "main", "index": 0}]]
+    }
+  },
+  "active": true,
+  "settings": {"executionOrder": "v1", "binaryMode": "separate"},
+  "versionId": "YOUR_VERSION_ID_WF1C",
+  "meta": {"instanceId": "YOUR_N8N_INSTANCE_ID"},
+  "id": "YOUR_WORKFLOW_ID_WF1C",
+  "tags": []
+}
