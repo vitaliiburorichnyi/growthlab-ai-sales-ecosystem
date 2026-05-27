@@ -33,7 +33,7 @@ New Lead → Voice Agent Call (2 min) → BANT Score → Zoho CRM
 ## Tech Stack
 
 - **n8n** (self-hosted) — workflow automation
-- **Happ.tools** — AI voice agent (GPT-4o, Ukrainian, voice: Dmytro)
+- **Happ.tools** — AI voice agent (GPT-5-mini, English, voice: Arabella)
 - **Anthropic Claude Sonnet** — BANT scoring + dialog analysis + CEO report
 - **Zoho CRM** — lead management (custom fields: AI_Score, AI_Context, Session_ID)
 - **Google Sheets** — dialog quality database
@@ -68,8 +68,8 @@ Go to `Setup → Customization → Modules → Leads → Fields` and create:
 
 Create assistant with:
 - Type: Voice
-- Model: GPT-4o
-- Voice: Dmytro (Ukrainian)
+- Model: GPT-5-mini
+- Voice: Arabella (English)
 - Eagerness: Normal
 - Turn after silence: 6 sec
 
