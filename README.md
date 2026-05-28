@@ -165,4 +165,4 @@ Replace these in the JSON files before importing:
 
 ## License
 
-MIT — free to use, modify, and distribute.
+MIT — free to use, modify, and distribute. 
